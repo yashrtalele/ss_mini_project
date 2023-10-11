@@ -1,12 +1,19 @@
 #include<stdio.h>
 #include<stdlib.h>
 #include<unistd.h>
+#include<termios.h>
 #include<sys/types.h>
 #include<sys/socket.h>
 #include<netinet/in.h>
 #define SERVER_PORT 8888
 
-int main() {
+
+
+void main(void) {
+    struct termios old_settings, new_settings;
+    tcgetattr(STDIN_FILENO, &old_settings);
+    char username[100];
+    char password[100];
     // Create a socket
     int client_socket=socket(AF_INET, SOCK_STREAM, 0);
     if(client_socket < 0) {
@@ -46,5 +53,30 @@ int main() {
         perror("send");
         exit(EXIT_FAILURE);
     }
+    printf("Enter your username : ");
+    scanf("%s", &username);
+    if(send(client_socket, username, sizeof(username), 0) < 0) {
+        perror("send");
+        exit(EXIT_FAILURE);
+    }
+    new_settings = old_settings;
+    new_settings.c_lflag &= ~ECHO;
+    tcsetattr(STDIN_FILENO, TCSANOW, &new_settings);
+    printf("Enter your password : ");
+    scanf("%s", password);
+    tcsetattr(STDIN_FILENO, TCSANOW, &old_settings);
+    if(send(client_socket, password, sizeof(password), 0) < 0) {
+        perror("send");
+        exit(EXIT_FAILURE);
+    }
+    printf("\n", password);
+    
+    char msg[1024];
+    if((recv(client_socket, msg, sizeof(msg), 0))<0) {
+        perror("recv");
+        close(client_socket);
+        exit(EXIT_FAILURE);
+    }
+    printf("%s", msg);
     close(client_socket);
 }

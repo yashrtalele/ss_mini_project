@@ -42,7 +42,7 @@ course_t course_db[100];
 // Load the user database from a file
 void load_user_db() {
     // Open the user database file
-    FILE *fp = fopen("db/users.db", "r");
+    FILE *fp = fopen("/home/yash/ss_mini_project/db/users.db", "r");
     if (fp == NULL) {
         perror("fopen");
         exit(1);
@@ -60,7 +60,7 @@ void load_user_db() {
 // Save the user database to a file
 void save_user_db() {
     // Open the user database file
-    FILE *fp = fopen("db/users.db", "w");
+    FILE *fp = fopen("/home/yash/ss_mini_project/db/users.db", "w");
     if (fp == NULL) {
         perror("fopen");
         exit(1);
@@ -134,6 +134,28 @@ void *handle_client_connection(void *args) {
     return NULL;
 }
 
+void handle_client_con(void *args) {
+    // * Get the client connection information
+    client_connection_t *client_connection = (client_connection_t *) args;
+    // ...
+    // ? authenticate
+    int user_id=authenticate_user(client_connection->user.username, client_connection->user.password);
+    if (user_id <= 0) {
+        if((send(client_connection->socket_fd, "Failed to authenticate user. Please create your user account!\n", 63, 0)) < 0) {
+            perror("send");
+            close(client_connection->socket_fd);
+            exit(EXIT_FAILURE);
+        }
+        close(client_connection->socket_fd);
+        // free(client_connection);
+    }
+
+    // TODO: process user's requests;
+
+    close(client_connection->socket_fd);
+    free(client_connection);
+}
+
 void main(void) {
     // SOCKET CONNECTION -----
     int server_socket = socket(AF_INET, SOCK_STREAM, 0);
@@ -152,7 +174,7 @@ void main(void) {
         exit(EXIT_FAILURE);
     }
     listen(server_socket, MAX_CONNECTIONS);
-
+    load_user_db();
     // while (1) {
         // Accept a new connection
         client_connection_t *client_connection = malloc(sizeof(client_connection_t));
@@ -173,9 +195,19 @@ void main(void) {
         }
         int ch=atoi(choice);
         client_connection->user.type=ch-1;
+        // char uname[100]={0};
+        if((recv(client_connection->socket_fd, client_connection->user.username, sizeof(client_connection->user.username), 0)) < 0) {
+            perror("recv");
+            // retry
+        }
+        if((recv(client_connection->socket_fd, client_connection->user.password, sizeof(client_connection->user.password), 0)) < 0) {
+            perror("recv");
+            // retry
+        }
+        handle_client_con(client_connection);
         // Create a new thread to handle the connection
-        pthread_t thread;
-        pthread_create(&thread, NULL, handle_client_connection, client_connection);
+        // pthread_t thread;
+        // pthread_create(&thread, NULL, handle_client_connection, client_connection);
     // }
 
     // Close the server socket
