@@ -7,8 +7,6 @@
 #include<netinet/in.h>
 #define SERVER_PORT 8888
 
-
-
 void main(void) {
     struct termios old_settings, new_settings;
     tcgetattr(STDIN_FILENO, &old_settings);

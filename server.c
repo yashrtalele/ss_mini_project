@@ -117,21 +117,41 @@ void *handle_client_connection(void *args) {
     // * Get the client connection information
     client_connection_t *client_connection = (client_connection_t *) args;
     // ...
-    printf("sinside");
+
+    char choice[1];
+    if((recv(client_connection->socket_fd, choice, sizeof(choice), 0)) < 0) {
+        perror("recv");
+        // retry
+    }
+    int ch=atoi(choice);
+    client_connection->user.type=ch-1;
+    // char uname[100]={0};
+    if((recv(client_connection->socket_fd, client_connection->user.username, sizeof(client_connection->user.username), 0)) < 0) {
+        perror("recv");
+        // retry
+    }
+    if((recv(client_connection->socket_fd, client_connection->user.password, sizeof(client_connection->user.password), 0)) < 0) {
+        perror("recv");
+        // retry
+    }
     // ? authenticate
     int user_id=authenticate_user(client_connection->user.username, client_connection->user.password);
     if (user_id < 0) {
-        printf("Failed to authenticate user. Please create your user account!\n");
+        if((send(client_connection->socket_fd, "Failed to authenticate user. Please create your user account!\n", 63, 0)) < 0) {
+            perror("send");
+            close(client_connection->socket_fd);
+            exit(EXIT_FAILURE);
+        }
         close(client_connection->socket_fd);
-        free(client_connection);
-        return NULL;
+        // free(client_connection);
+        // return NULL;
     }
 
     // TODO: process user's requests;
 
     close(client_connection->socket_fd);
-    free(client_connection);
-    return NULL;
+    // free(client_connection);
+    // return NULL;
 }
 
 void handle_client_con(void *args) {
@@ -146,6 +166,8 @@ void handle_client_con(void *args) {
             close(client_connection->socket_fd);
             exit(EXIT_FAILURE);
         }
+        create_user(client_connection->user.username, client_connection->user.password, client_connection->user.type);
+        save_user_db();
         close(client_connection->socket_fd);
         // free(client_connection);
     }
@@ -175,7 +197,7 @@ void main(void) {
     }
     listen(server_socket, MAX_CONNECTIONS);
     load_user_db();
-    // while (1) {
+    while (1) {
         // Accept a new connection
         client_connection_t *client_connection = malloc(sizeof(client_connection_t));
         client_connection->socket_fd = accept(server_socket, NULL, NULL);
@@ -188,27 +210,12 @@ void main(void) {
             perror("send");
             // retry
         }
-        char choice[1];
-        if((recv(client_connection->socket_fd, choice, sizeof(choice), 0)) < 0) {
-            perror("recv");
-            // retry
-        }
-        int ch=atoi(choice);
-        client_connection->user.type=ch-1;
-        // char uname[100]={0};
-        if((recv(client_connection->socket_fd, client_connection->user.username, sizeof(client_connection->user.username), 0)) < 0) {
-            perror("recv");
-            // retry
-        }
-        if((recv(client_connection->socket_fd, client_connection->user.password, sizeof(client_connection->user.password), 0)) < 0) {
-            perror("recv");
-            // retry
-        }
-        handle_client_con(client_connection);
+        
+        // handle_client_con(client_connection);
         // Create a new thread to handle the connection
-        // pthread_t thread;
-        // pthread_create(&thread, NULL, handle_client_connection, client_connection);
-    // }
+        pthread_t thread;
+        pthread_create(&thread, NULL, handle_client_connection, client_connection);
+    }
 
     // Close the server socket
     close(server_socket);
