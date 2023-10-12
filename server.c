@@ -212,6 +212,156 @@ void *handle_client_connection(void *args) {
     // return NULL;
 }
 
+void load_course_db() {
+    // Open the course database file
+    int course_db_fd = open("courses.txt", O_RDONLY);
+    if (course_db_fd < 0) {
+    perror("open");
+    exit(1);
+    }
+
+    // Lock the course database file
+    // TODO: File locking
+    // fcntl(course_db_fd, F_SETLK, &course_db_lock);
+
+    // Read each course from the file
+    for (int i = 0; i < 100; i++) {
+    course_t course;
+    int bytes_read = read(course_db_fd, &course, sizeof(course));
+    if (bytes_read < 0) {
+        perror("read");
+        break;
+    }
+
+    if (bytes_read == 0) {
+        break;
+    }
+
+    // Unlock the record for the current course
+    // TODO: Record locking
+    // fcntl(course_db_fd, F_UNLCK, &course_db_lock, &course_db_lock.l_type, course.id * sizeof(course_t));
+
+    // Add the course to the database
+    course_db[course.id] = course;
+}
+
+// Unlock the course database file
+// fcntl(course_db_fd, F_UNLCK, &course_db_lock);
+
+// Close the course database file
+close(course_db_fd);
+}
+
+void save_courses_db() {
+    // Open the course database file
+    int course_db_fd = open("courses.txt", O_RDWR | O_CREAT, 0644);
+    if (course_db_fd < 0) {
+    perror("open");
+    exit(1);
+    }
+    // TODO: File locking
+    // Lock the course database file
+    // fcntl(course_db_fd, F_SETLK, &course_db_lock);
+
+    // Write each course to the file
+    for (int i = 0; i < 100; i++) {
+    course_t course = course_db[i];
+    if (course.name[0] != '\0') {
+        // Lock the record for the current course
+        // TODO: Record locking
+        // fcntl(course_db_fd, F_SETLK, &course_db_lock, &course_db_lock.l_type, course.id * sizeof(course_t));
+
+        // Write the course to the file
+        int bytes_written = write(course_db_fd, &course, sizeof(course));
+        if (bytes_written < 0) {
+            perror("write");
+            break;
+        }
+
+        // Unlock the record for the current course
+        // fcntl(course_db_fd, F_UNLCK, &course_db_lock);
+    }
+}
+
+    // Unlock the course database file
+    // fcntl(course_db_fd, F_UNLCK, &course_db_lock);
+
+    // Close the course database file
+    close(course_db_fd);
+}
+
+
+int create_course(char *name, int credits, char *instructor) {
+    // TODO: Create load_course_db()
+    int course_db_fd = open("/home/yash/ss_mini_project/db/courses.db", O_RDWR | O_CREAT, 0644);
+    if (course_db_fd < 0) {
+        perror("open");
+        exit(1);
+    }
+
+
+    // TODO: File locking
+     // Lock the course database file
+    // fcntl(course_db_fd, F_SETLK, &course_db_lock);
+
+    // Find the next available course ID
+    int id = 0;
+    while (course_db[id].name[0] != '\0') {
+        id++;
+    }
+
+    // Create a new course
+    course_t course = { id, name, credits, instructor }; // ? use strcpy() for strings
+    course_db[id] = course;
+
+
+    // Unlock the course database file
+    // fcntl(course_db_fd, F_UNLCK, &course_db_lock);
+
+    // Return the new course ID
+    return id;
+}
+
+void update_course(int id, char *name, int credits, char *instructor) {
+    int course_db_fd = open("/home/yash/ss_mini_project/db/courses.db", O_RDWR | O_CREAT, 0644);
+    if (course_db_fd < 0) {
+        perror("open");
+        exit(1);
+    }
+
+    // Lock the course database file
+    // fcntl(course_db_fd, F_SETLK, &course_db_lock);
+
+    // Get the course to be updated
+    course_t course = course_db[id];
+
+    // Update the course information
+    // course.name = name; // ? use strcpy() for strings
+    course.credits = credits;
+    // course.instructor = instructor; // ? use strcpy() for strings
+
+    // Save the updated course to the database
+    course_db[id] = course;
+
+    // Unlock the course database file
+    // fcntl(course_db_fd, F_UNLCK, &course_db_lock);
+}
+
+void delete_course(int id) {
+    // Lock the course database file
+    // fcntl(course_db_fd, F_SETLK, &course_db_lock);
+
+    // TODO: File locking
+    // Get the course to be deleted
+    course_t course = course_db[id];
+
+    // Set the course's name to an empty string
+    course.name[0] = '\0';
+
+    // Unlock the course database file
+    // fcntl(course_db_fd, F_UNLCK, &course_db_lock);
+}
+
 void main(void) {
     // SOCKET CONNECTION -----
     int server_socket = socket(AF_INET, SOCK_STREAM, 0);
