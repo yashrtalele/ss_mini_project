@@ -42,38 +42,88 @@ course_t course_db[100];
 // Load the user database from a file
 void load_user_db() {
     // Open the user database file
-    FILE *fp = fopen("/home/yash/ss_mini_project/db/users.db", "r");
-    if (fp == NULL) {
-        perror("fopen");
+    // FILE *fp = fopen("/home/yash/ss_mini_project/db/users.db", "r");
+    // if (fp == NULL) {
+    //     perror("fopen");
+    //     exit(1);
+    // }
+    // // Read each user from the file and add it to the database
+    // while (!feof(fp)) {
+    //     user_t user;
+    //     fscanf(fp, "%d %d %s %s\n", &user.id, &user.type, user.username, user.password);
+    //     user_db[user.id] = user;
+    // }
+    // // Close the user database file
+    // fclose(fp);
+    int fd = open("/home/yash/ss_mini_project/db/users.db", O_RDONLY);
+    if (fd < 0) {
+        perror("open");
         exit(1);
     }
+
     // Read each user from the file and add it to the database
-    while (!feof(fp)) {
+    char buf[1024];
+    while (1) {
+        int bytes_read = read(fd, buf, sizeof(buf));
+        if (bytes_read < 0) {
+            perror("read");
+            break;
+        }
+
+        if (bytes_read == 0) {
+            break;
+        }
+
+        // Parse the user data from the buffer
         user_t user;
-        fscanf(fp, "%d %d %s %s\n", &user.id, &user.type, user.username, user.password);
+        sscanf(buf, "%d %d %s %s\n", &user.id, &user.type, user.username, user.password);
         user_db[user.id] = user;
     }
-    // Close the user database file
-    fclose(fp);
+    close(fd);
 }
 
 // Save the user database to a file
 void save_user_db() {
     // Open the user database file
-    FILE *fp = fopen("/home/yash/ss_mini_project/db/users.db", "w");
-    if (fp == NULL) {
-        perror("fopen");
+    // FILE *fp = fopen("/home/yash/ss_mini_project/db/users.db", "w");
+    // if (fp == NULL) {
+    //     perror("fopen");
+    //     exit(1);
+    // }
+    // printf("Inside save_user_db()\n");
+    // // Write each user from the database to the file
+    // for (int i = 0; i < 100; i++) {
+    //     user_t user = user_db[i];
+    //     if (user.username[0] != '\0') {
+    //         printf("Inside for and if\n");
+    //         fprintf(fp, "%d %d %s %s\n", user.id, user.type, user.username, user.password);
+    //     }
+    // }
+    // // Close the user database file
+    // fclose(fp);
+    int fd = open("/home/yash/ss_mini_project/db/users.db", O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    if (fd < 0) {
+        perror("open");
         exit(1);
     }
+    // printf("inside this");
     // Write each user from the database to the file
+    char buf[1024];
     for (int i = 0; i < 100; i++) {
         user_t user = user_db[i];
+        // printf("inside this for");
         if (user.username[0] != '\0') {
-            fprintf(fp, "%d %d %s %s\n", user.id, user.type, user.username, user.password);
+            sprintf(buf, "%d %d %s %s\n", user.id, user.type, user.username, user.password);
+            int bytes_written = write(fd, buf, strlen(buf));
+            if (bytes_written < 0) {
+                perror("write");
+                break;
+            }
         }
     }
+
     // Close the user database file
-    fclose(fp);
+    close(fd);
 }
 
 // Authenticate a user
@@ -105,11 +155,17 @@ int create_user(char *username, char *password, enum user_type type) {
         id++;
     }
     // Create a new user
-    user_t user = { id, type, *username, *password };
+    user_t user;
+    user.id=id;
+    user.type=type;
+    strncpy(user.username, username, strlen(username));
+    strncpy(user.password, password, strlen(password));
     user_db[id] = user;
+    printf("%s %s \n", user.username, user.password);
     // Unlock the user database mutex
     pthread_mutex_unlock(&user_db_mutex);
     // Return the new user ID
+    printf("id = %d", id);
     return id;
 }
 
@@ -137,19 +193,21 @@ void *handle_client_connection(void *args) {
     // ? authenticate
     int user_id=authenticate_user(client_connection->user.username, client_connection->user.password);
     if (user_id < 0) {
-        if((send(client_connection->socket_fd, "Failed to authenticate user. Please create your user account!\n", 63, 0)) < 0) {
+        if((send(client_connection->socket_fd, "Failed to authenticate user!\n", 30, 0)) < 0) {
             perror("send");
-            close(client_connection->socket_fd);
+            // close(client_connection->socket_fd);
             exit(EXIT_FAILURE);
         }
+        // create_user(client_connection->user.username, client_connection->user.password, client_connection->user.type);
+        // save_user_db();
         close(client_connection->socket_fd);
         // free(client_connection);
         // return NULL;
     }
-
+    send(client_connection->socket_fd, "Login Success!", 15, 0);
     // TODO: process user's requests;
 
-    close(client_connection->socket_fd);
+    // close(client_connection->socket_fd);
     // free(client_connection);
     // return NULL;
 }
