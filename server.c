@@ -22,6 +22,22 @@ typedef struct {
 } user_t;
 
 typedef struct {
+    int id;
+    enum user_type type;
+    char username[128];
+    char password[128];
+    int active;
+} admin_t;
+
+typedef struct {
+    int id;
+    enum user_type type;
+    char username[128];
+    char password[128];
+    int active;
+} faculty_t;
+
+typedef struct {
     int socket_fd;
     user_t user;
 } client_connection_t;
@@ -37,9 +53,59 @@ pthread_mutex_t user_db_mutex;
 
 // Define the user database
 user_t user_db[100];
+admin_t admin_db[100];
+faculty_t faculty_db[100];
 
 // Define the course database
 course_t course_db[100];
+
+void load_admin_db() {
+    // Open the users database file for reading
+    FILE *fp = fopen("/home/yash/ss_mini_project/db/admin.db", "r");
+    if (fp < 0) {
+        perror("open");
+        exit(1);
+    }
+
+    // Read each line from the users database file
+    char line[1024];
+    while (fgets(line, sizeof(line), fp) != NULL) {
+        // Parse the user data from the line
+        admin_t user;
+        char t[1];
+        sscanf(line, "%d %d %s %s %s\n", &user.id, &user.type, user.username, user.password, t);
+        user.active = atoi(t);
+        // Add the user to the database
+        write(STDOUT_FILENO, user.username, strlen(user.username));
+        admin_db[user.id] = user;
+    }
+    // Close the users database file
+    fclose(fp);
+}
+
+void load_faculty_db() {
+    // Open the users database file for reading
+    FILE *fp = fopen("/home/yash/ss_mini_project/db/faculty.db", "r");
+    if (fp < 0) {
+        perror("open");
+        exit(1);
+    }
+
+    // Read each line from the users database file
+    char line[1024];
+    while (fgets(line, sizeof(line), fp) != NULL) {
+        // Parse the user data from the line
+        faculty_t user;
+        char t[1];
+        sscanf(line, "%d %d %s %s %s\n", &user.id, &user.type, user.username, user.password, t);
+        user.active = atoi(t);
+        // Add the user to the database
+        write(STDOUT_FILENO, user.username, strlen(user.username));
+        faculty_db[user.id] = user;
+    }
+    // Close the users database file
+    fclose(fp);
+}
 
 void load_user_db() {
     // Open the users database file for reading
@@ -91,6 +157,44 @@ void save_user_db() {
     close(fd);
 }
 
+int authenticate_admin(char *username, char *password) {
+    // Lock the user database mutex
+    pthread_mutex_lock(&user_db_mutex);
+    // Search for the user in the database
+    int i, id;
+    for (i = 0; i < 100; i++) {
+        admin_t user = admin_db[i];
+        
+        if (user.active == 1 && strcmp(user.username, username) == 0 && strcmp(user.password, password) == 0) {
+            id=user.id;
+            break;
+        }
+    }
+    // Unlock the user database mutex
+    pthread_mutex_unlock(&user_db_mutex);
+    // If the user was found, return their ID, otherwise return -1
+    return (i < 100) ? id : -1;
+}
+
+int authenticate_faculty(char *username, char *password) {
+    // Lock the user database mutex
+    pthread_mutex_lock(&user_db_mutex);
+    // Search for the user in the database
+    int i, id;
+    for (i = 0; i < 100; i++) {
+        faculty_t user = faculty_db[i];
+        
+        if (user.active == 1 && strcmp(user.username, username) == 0 && strcmp(user.password, password) == 0) {
+            id=user.id;
+            break;
+        }
+    }
+    // Unlock the user database mutex
+    pthread_mutex_unlock(&user_db_mutex);
+    // If the user was found, return their ID, otherwise return -1
+    return (i < 100) ? id : -1;
+}
+
 // Authenticate a user
 int authenticate_user(char *username, char *password) {
     // Lock the user database mutex
@@ -101,7 +205,6 @@ int authenticate_user(char *username, char *password) {
         user_t user = user_db[i];
         
         if (user.active == 1 && strcmp(user.username, username) == 0 && strcmp(user.password, password) == 0) {
-            write(STDOUT_FILENO, user.username, strlen(user.username));
             id=user.id;
             break;
         }
@@ -218,7 +321,7 @@ void *handle_client_connection(void *args) {
             // retry
         }
         // ? authenticate
-        int user_id=authenticate_user(client_connection->user.username, client_connection->user.password);
+        int user_id=authenticate_admin(client_connection->user.username, client_connection->user.password);
         if (user_id < 0) {
             if((send(client_connection->socket_fd, "Failed to authenticate user!\n", 30, 0)) < 0) {
                 perror("send");
@@ -309,7 +412,7 @@ void *handle_client_connection(void *args) {
             // retry
         }
         // ? authenticate
-        int user_id=authenticate_user(client_connection->user.username, client_connection->user.password);
+        int user_id=authenticate_faculty(client_connection->user.username, client_connection->user.password);
         if (user_id < 0) {
             if((send(client_connection->socket_fd, "Failed to authenticate user!\n", 30, 0)) < 0) {
                 perror("send");
@@ -360,7 +463,7 @@ void *handle_client_connection(void *args) {
 
 void load_course_db() {
     // Open the course database file
-    int course_db_fd = open("courses.txt", O_RDONLY);
+    int course_db_fd = open("db/courses.db", O_RDONLY);
     if (course_db_fd < 0) {
     perror("open");
     exit(1);
@@ -530,7 +633,10 @@ void main(void) {
         exit(EXIT_FAILURE);
     }
     listen(server_socket, MAX_CONNECTIONS);
+    load_admin_db();
+    load_faculty_db();
     load_user_db();
+    load_course_db();
     while (1) {
         client_connection_t *client_connection = malloc(sizeof(client_connection_t));
         client_connection->socket_fd = accept(server_socket, NULL, NULL);
