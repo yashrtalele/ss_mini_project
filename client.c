@@ -8,6 +8,16 @@
 #include<netinet/in.h>
 #define SERVER_PORT 8888
 
+typedef struct {
+    int id;
+    char name[128];
+    int credits;
+    char instructor[128];
+    int max_seats;
+    int available_seats;
+} course_t;
+
+
 void main(void) {
     struct termios old_settings, new_settings;
     tcgetattr(STDIN_FILENO, &old_settings);
@@ -252,7 +262,75 @@ void main(void) {
             write(STDOUT_FILENO, msg, strlen(msg));
         }
         else if(atoi(mch)==3) {
-            
+            int num_courses;
+            recv(client_socket, &num_courses, sizeof(int), 0);
+            // Allocate an array to store the course details
+            course_t *courses = malloc(sizeof(course_t) * num_courses);
+            if (courses == NULL) {
+                perror("malloc");
+                exit(1);
+            }
+
+            // Receive the course details from the server
+            printf("%d\n", num_courses);
+            for (int i = 0; i < num_courses; i++) {
+                recv(client_socket, &courses[i], sizeof(course_t), 0);
+            }
+            for (int i = 0; i < num_courses; i++) {
+                printf("Course id: %d\n", courses[i].id);
+                printf("Course name: %s\n", courses[i].name);
+                printf("Course instructor: %s\n\n", courses[i].instructor);
+                printf("Course's maximum seats: %d\n\n", courses[i].max_seats);
+                printf("Course's available seats: %d\n\n", courses[i].available_seats);
+            }
+            // Free the course details array
+            free(courses);
+        }
+        else if(atoi(mch)==4) {
+            char pass[128]={0};
+            printf("Enter new password: ");
+            scanf("%s", pass);
+            send(client_socket, pass, sizeof(pass), 0);
+            memset(msg, 0, sizeof(msg));
+            recv(client_socket, msg, sizeof(msg), 0);
         }
     }
+    else if(ch == 3) {
+        char mch[1];
+        char* menu="\nWelcome, Student\n"
+                        "1. Enroll to new Courses\n"
+                        "2. Unenroll from already enrolled Courses\n"
+                        "3. View enrolled Courses\n"
+                        "4. Password Change\n"
+                        "5. Exit\n"
+                        "Enter your Choice : ";
+        printf("%s", menu);
+        scanf("%s", mch);
+        if(send(client_socket, mch, sizeof(mch), 0) < 0) {
+            perror("send");
+            close(client_socket);
+            exit(EXIT_FAILURE);
+        }
+        if(atoi(mch)==1) {
+            char course_id[5]={0};
+            printf("Enter course id: ");
+            scanf("%s", course_id);
+            if(send(client_socket, course_id, sizeof(course_id), 0) < 0) {
+                perror("send");
+                close(client_socket);
+                exit(EXIT_FAILURE);
+            }
+        }
+        if(atoi(mch)==2) {
+            char course_id[5]={0};
+            printf("Enter course id: ");
+            scanf("%s", course_id);
+            if(send(client_socket, course_id, sizeof(course_id), 0) < 0) {
+                perror("send");
+                close(client_socket);
+                exit(EXIT_FAILURE);
+            }
+        }
+    }
+
 }
