@@ -1,6 +1,7 @@
 #include<stdio.h>
 #include<stdlib.h>
 #include<unistd.h>
+#include<string.h>
 #include<termios.h>
 #include<sys/types.h>
 #include<sys/socket.h>
@@ -75,6 +76,55 @@ void main(void) {
         close(client_socket);
         exit(EXIT_FAILURE);
     }
-    printf("%s", msg);
-    close(client_socket);
+    printf("%s\n", msg);
+    int ch=atoi(choice);
+    if(ch == 1) {
+        char mch[1];
+        char* menu="\nWelcome, Admin\n"
+                        "1. Add Student\n"
+                        "2. Add Faculty\n"
+                        "3. Activate/Deactivate Student\n"
+                        "4. Update Student/Faculty details\n"
+                        "5. Exit\n"
+                        "Enter your Choice : ";
+        printf("%s", menu);
+        scanf("%s", mch);
+        if(send(client_socket, mch, sizeof(mch), 0) < 0) {
+            perror("send");
+            close(client_socket);
+            exit(EXIT_FAILURE);
+        }
+        if(atoi(mch)==1) {
+            char u[100]={0};
+            char pass[100]={0};
+            char type[1];
+            printf("Enter username: ");
+            scanf("%s", u);
+            if(send(client_socket, u, sizeof(u), 0) < 0) {
+                perror("send");
+                close(client_socket);
+                exit(EXIT_FAILURE);
+            }
+            memset(msg, 0, sizeof(msg));
+            recv(client_socket, msg, sizeof(msg), 0);
+            printf("Enter password: ");
+            scanf("%s", pass);
+            if(send(client_socket, pass, sizeof(pass), 0) < 0) {
+                perror("send");
+                close(client_socket);
+                exit(EXIT_FAILURE);
+            }
+            memset(msg, 0, sizeof(msg));
+            recv(client_socket, msg, sizeof(msg), 0);
+            printf("Enter user type: ");
+            scanf("%s", type);
+            if(send(client_socket, type, sizeof(type), 0) < 0) {
+                perror("send");
+                close(client_socket);
+                exit(EXIT_FAILURE);
+            }
+            memset(msg, 0, sizeof(msg));
+            recv(client_socket, msg, sizeof(msg), 0);
+        }
+    }
 }

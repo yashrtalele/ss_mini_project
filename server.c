@@ -2,6 +2,7 @@
 #include<fcntl.h>
 #include<unistd.h>
 #include<stdlib.h>
+#include<stdbool.h>
 #include<string.h>
 #include<pthread.h>
 #include<sys/types.h>
@@ -17,6 +18,7 @@ typedef struct {
     enum user_type type;
     char username[128];
     char password[128];
+    int active;
 } user_t;
 
 typedef struct {
@@ -41,20 +43,6 @@ course_t course_db[100];
 
 // Load the user database from a file
 void load_user_db() {
-    // Open the user database file
-    // FILE *fp = fopen("/home/yash/ss_mini_project/db/users.db", "r");
-    // if (fp == NULL) {
-    //     perror("fopen");
-    //     exit(1);
-    // }
-    // // Read each user from the file and add it to the database
-    // while (!feof(fp)) {
-    //     user_t user;
-    //     fscanf(fp, "%d %d %s %s\n", &user.id, &user.type, user.username, user.password);
-    //     user_db[user.id] = user;
-    // }
-    // // Close the user database file
-    // fclose(fp);
     int fd = open("/home/yash/ss_mini_project/db/users.db", O_RDONLY);
     if (fd < 0) {
         perror("open");
@@ -76,7 +64,9 @@ void load_user_db() {
 
         // Parse the user data from the buffer
         user_t user;
-        sscanf(buf, "%d %d %s %s\n", &user.id, &user.type, user.username, user.password);
+        char t[1];
+        sscanf(buf, "%d %d %s %s %s\n", &user.id, &user.type, user.username, user.password, t);
+        user.active=atoi(t);
         user_db[user.id] = user;
     }
     close(fd);
@@ -84,23 +74,6 @@ void load_user_db() {
 
 // Save the user database to a file
 void save_user_db() {
-    // Open the user database file
-    // FILE *fp = fopen("/home/yash/ss_mini_project/db/users.db", "w");
-    // if (fp == NULL) {
-    //     perror("fopen");
-    //     exit(1);
-    // }
-    // printf("Inside save_user_db()\n");
-    // // Write each user from the database to the file
-    // for (int i = 0; i < 100; i++) {
-    //     user_t user = user_db[i];
-    //     if (user.username[0] != '\0') {
-    //         printf("Inside for and if\n");
-    //         fprintf(fp, "%d %d %s %s\n", user.id, user.type, user.username, user.password);
-    //     }
-    // }
-    // // Close the user database file
-    // fclose(fp);
     int fd = open("/home/yash/ss_mini_project/db/users.db", O_WRONLY | O_CREAT | O_TRUNC, 0644);
     if (fd < 0) {
         perror("open");
@@ -113,7 +86,7 @@ void save_user_db() {
         user_t user = user_db[i];
         // printf("inside this for");
         if (user.username[0] != '\0') {
-            sprintf(buf, "%d %d %s %s\n", user.id, user.type, user.username, user.password);
+            sprintf(buf, "%d %d %s %s %d\n", user.id, user.type, user.username, user.password, user.active);
             int bytes_written = write(fd, buf, strlen(buf));
             if (bytes_written < 0) {
                 perror("write");
@@ -134,7 +107,7 @@ int authenticate_user(char *username, char *password) {
     int i, id;
     for (i = 0; i < 100; i++) {
         user_t user = user_db[i];
-        if (strcmp(user.username, username) == 0 && strcmp(user.password, password) == 0) {
+        if (user.active == 1 && strcmp(user.username, username) == 0 && strcmp(user.password, password) == 0) {
             id=user.id;
             break;
         }
@@ -160,7 +133,8 @@ int create_user(char *username, char *password, enum user_type type) {
     user.type=type;
     strncpy(user.username, username, strlen(username));
     strncpy(user.password, password, strlen(password));
-    user_db[id] = user;
+    user.active=1;
+    user_db[id]=user;
     printf("%s %s \n", user.username, user.password);
     // Unlock the user database mutex
     pthread_mutex_unlock(&user_db_mutex);
@@ -169,11 +143,68 @@ int create_user(char *username, char *password, enum user_type type) {
     return id;
 }
 
+user_t *get_student_by_id(int student_id) {
+    struct flock student_db_lock;
+    student_db_lock.l_type = F_WRLCK;
+    student_db_lock.l_whence = SEEK_SET;
+    student_db_lock.l_start = 0;
+    student_db_lock.l_len = 0; 
+    // Lock the student database file
+    int student_db_fd = open("db/users.db", O_RDWR);
+    fcntl(student_db_fd, F_SETLK, &student_db_lock);
+
+    // Find the student in the database
+    user_t *student = NULL;
+    for (int i = 0; i < 100; i++) {
+        user_t current_student = user_db[i];
+        if (current_student.id == student_id) {
+        student = &current_student;
+        break;
+        }
+    }
+
+    // Unlock the student database file
+    fcntl(student_db_fd, F_UNLCK, &student_db_lock);
+
+    // Return the student object, or NULL if the student was not found
+    return student;
+}
+
+void save_student(user_t *student) {
+    struct flock student_db_lock;
+    student_db_lock.l_type = F_WRLCK;
+    student_db_lock.l_whence = SEEK_SET;
+    student_db_lock.l_start = 0;
+    student_db_lock.l_len = 0; 
+    int student_db_fd = open("db/users.db", O_RDWR);
+    // Lock the student database file
+    fcntl(student_db_fd, F_SETLK, &student_db_lock);
+
+    // Find the student in the database
+    int student_id = student->id;
+    user_t current_student = user_db[student_id];
+
+    // Copy the student object to the database
+    memcpy(&current_student, student, sizeof(user_t));
+
+    // Unlock the student database file
+    fcntl(student_db_fd, F_UNLCK, &student_db_lock);
+}
+
+void activate_deactivate_student(int student_id, int activate) {
+    // Get the student object
+    user_t *student = get_student_by_id(student_id);
+
+    // Set the student's status
+    student->active=1;
+
+    // Save the student object
+    save_student(student);
+}
+
 void *handle_client_connection(void *args) {
     // * Get the client connection information
     client_connection_t *client_connection = (client_connection_t *) args;
-    // ...
-
     char choice[1];
     if((recv(client_connection->socket_fd, choice, sizeof(choice), 0)) < 0) {
         perror("recv");
@@ -181,31 +212,154 @@ void *handle_client_connection(void *args) {
     }
     int ch=atoi(choice);
     client_connection->user.type=ch-1;
-    // char uname[100]={0};
-    if((recv(client_connection->socket_fd, client_connection->user.username, sizeof(client_connection->user.username), 0)) < 0) {
-        perror("recv");
-        // retry
-    }
-    if((recv(client_connection->socket_fd, client_connection->user.password, sizeof(client_connection->user.password), 0)) < 0) {
-        perror("recv");
-        // retry
-    }
-    // ? authenticate
-    int user_id=authenticate_user(client_connection->user.username, client_connection->user.password);
-    if (user_id < 0) {
-        if((send(client_connection->socket_fd, "Failed to authenticate user!\n", 30, 0)) < 0) {
-            perror("send");
-            // close(client_connection->socket_fd);
-            exit(EXIT_FAILURE);
+    
+    // ! ADMIN
+    if(ch-1 == 0) {
+        if((recv(client_connection->socket_fd, client_connection->user.username, sizeof(client_connection->user.username), 0)) < 0) {
+            perror("recv");
+            // retry
         }
-        // create_user(client_connection->user.username, client_connection->user.password, client_connection->user.type);
-        // save_user_db();
-        close(client_connection->socket_fd);
-        // free(client_connection);
-        // return NULL;
+        if((recv(client_connection->socket_fd, client_connection->user.password, sizeof(client_connection->user.password), 0)) < 0) {
+            perror("recv");
+            // retry
+        }
+        // ? authenticate
+        int user_id=authenticate_user(client_connection->user.username, client_connection->user.password);
+        if (user_id < 0) {
+            if((send(client_connection->socket_fd, "Failed to authenticate user!\n", 30, 0)) < 0) {
+                perror("send");
+                close(client_connection->socket_fd);
+                exit(EXIT_FAILURE);
+            }
+            close(client_connection->socket_fd);
+            // free(client_connection);
+        }
+        send(client_connection->socket_fd, "Login Success!", 15, 0);
+        char mch[1];
+        if((recv(client_connection->socket_fd, mch, sizeof(mch), 0)) < 0) {
+            perror("recv");
+            // retry
+        }
+        int mch_n=atoi(mch);
+        // ? Add student
+        if(mch_n == 1) {
+            // user->user.type=mch_n-1;
+            char u[128]={0};
+            if((recv(client_connection->socket_fd, u, sizeof(u), 0)) < 0) {
+                perror("recv");
+                // retry
+            }
+            send(client_connection->socket_fd, "Username received!", 19, 0);
+            char pass[128]={0};
+            if((recv(client_connection->socket_fd, pass, sizeof(pass), 0)) < 0) {
+                perror("recv");
+                // retry
+            }
+            send(client_connection->socket_fd, "Password received!", 19, 0);
+            char t[1];
+            if((recv(client_connection->socket_fd, t, sizeof(t), 0)) < 0) {
+                perror("recv");
+                // retry
+            }
+            send(client_connection->socket_fd, "Type received!", 15, 0);
+            create_user(u, pass, atoi(t)-1);
+            save_user_db();
+        }
+        // ? Add Faculty
+        if(mch_n == 2) {
+            client_connection_t *user;
+            user->user.type=mch_n-1;
+            if((recv(client_connection->socket_fd, user->user.username, sizeof(user->user.username), 0)) < 0) {
+                perror("recv");
+                // retry
+            }
+            if((recv(client_connection->socket_fd, user->user.password, sizeof(user->user.password), 0)) < 0) {
+                perror("recv");
+                // retry
+            }
+            create_user(user->user.username, user->user.password, user->user.type);
+            save_user_db();
+        }
+        // ? Activate/Deactivate Students
+        if(mch_n==3) {
+            char id[100];
+            char bool_a[1];
+            bool activate;
+            if((recv(client_connection->socket_fd, id, sizeof(id), 0)) < 0) {
+                perror("recv");
+                // retry
+            }
+            if((recv(client_connection->socket_fd, bool_a, sizeof(bool_a), 0)) < 0) {
+                perror("recv");
+                // retry
+            }
+            int id_n=atoi(id);
+            if(strcmp(bool_a, "t") == 0) {
+                activate=1;
+            } else {
+                activate=0;
+            }
+            activate_deactivate_student(id_n, activate);
+        }
+        // ? Update Student/Faculty Details
     }
-    send(client_connection->socket_fd, "Login Success!", 15, 0);
-    // TODO: process user's requests;
+
+    // ! FACULTY
+    else if(ch-1 == 1) {
+        if((recv(client_connection->socket_fd, client_connection->user.username, sizeof(client_connection->user.username), 0)) < 0) {
+            perror("recv");
+            // retry
+        }
+        if((recv(client_connection->socket_fd, client_connection->user.password, sizeof(client_connection->user.password), 0)) < 0) {
+            perror("recv");
+            // retry
+        }
+        // ? authenticate
+        int user_id=authenticate_user(client_connection->user.username, client_connection->user.password);
+        if (user_id < 0) {
+            if((send(client_connection->socket_fd, "Failed to authenticate user!\n", 30, 0)) < 0) {
+                perror("send");
+                // close(client_connection->socket_fd);
+                exit(EXIT_FAILURE);
+            }
+            // create_user(client_connection->user.username, client_connection->user.password, client_connection->user.type);
+            // save_user_db();
+            close(client_connection->socket_fd);
+            // free(client_connection);
+            // return NULL;
+        }
+        write(STDOUT_FILENO, "faculty cha bocha", 18);
+        send(client_connection->socket_fd, "Login Success!", 15, 0);
+    }
+
+    // ! STUDENT
+    else if(ch-1 == 2) {    
+    // char uname[100]={0};
+        if((recv(client_connection->socket_fd, client_connection->user.username, sizeof(client_connection->user.username), 0)) < 0) {
+            perror("recv");
+            // retry
+        }
+        if((recv(client_connection->socket_fd, client_connection->user.password, sizeof(client_connection->user.password), 0)) < 0) {
+            perror("recv");
+            // retry
+        }
+        // ? authenticate
+        int user_id=authenticate_user(client_connection->user.username, client_connection->user.password);
+        if (user_id < 0) {
+            if((send(client_connection->socket_fd, "Failed to authenticate user!\n", 30, 0)) < 0) {
+                perror("send");
+                // close(client_connection->socket_fd);
+                exit(EXIT_FAILURE);
+            }
+            // create_user(client_connection->user.username, client_connection->user.password, client_connection->user.type);
+            // save_user_db();
+            close(client_connection->socket_fd);
+            // free(client_connection);
+            // return NULL;
+        }
+        write(STDOUT_FILENO, "student cha bocha", 18);
+        send(client_connection->socket_fd, "Login Success!", 15, 0);
+    }
 
     // close(client_connection->socket_fd);
     // free(client_connection);
@@ -311,7 +465,11 @@ int create_course(char *name, int credits, char *instructor) {
     }
 
     // Create a new course
-    course_t course = { id, name, credits, instructor }; // ? use strcpy() for strings
+    course_t course; //{ id, name, credits, instructor }; // ? use strcpy() for strings
+    course.id=id;
+    course.credits=credits;
+    // strcpy(course.instructor, instructor);
+    // strcpy(course.name, name);
     course_db[id] = course;
 
 
