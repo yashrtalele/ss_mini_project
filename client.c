@@ -87,6 +87,10 @@ void main(void) {
         exit(EXIT_FAILURE);
     }
     printf("%s\n", msg);
+    if(strcmp(msg, "Failed to authenticate user!\n")==0) {
+        close(client_socket);
+        exit(EXIT_FAILURE);
+    }
     int ch=atoi(choice);
     if(ch == 1) {
         char mch[1];
@@ -188,6 +192,37 @@ void main(void) {
                 close(client_socket);
                 exit(EXIT_FAILURE);
             }
+        }
+        else if(atoi(mch)==4) {
+            char *m="1. Student 2. Faculty: ";
+            printf("%s", m);
+            char usr[2];
+            scanf("%s", usr);
+            if(send(client_socket, usr, sizeof(usr), 0) < 0) {
+                perror("send");
+                close(client_socket);
+                exit(EXIT_FAILURE);
+            }
+            char id[100];
+            printf("Enter id: ");
+            scanf("%s", id);
+            if(send(client_socket, id, sizeof(id), 0) < 0) {
+                perror("send");
+                close(client_socket);
+                exit(EXIT_FAILURE);
+            }
+            char newn[100];
+            printf("Enter new name: ");
+            scanf("%s", newn);
+            if(send(client_socket, newn, sizeof(newn), 0) < 0) {
+                perror("send");
+                close(client_socket);
+                exit(EXIT_FAILURE);
+            }
+        }
+        else if(atoi(mch) > 4) {
+            close(client_socket);
+            exit(EXIT_SUCCESS);
         }
     }
     else if(ch == 2) {
@@ -330,6 +365,18 @@ void main(void) {
                 close(client_socket);
                 exit(EXIT_FAILURE);
             }
+        }
+        else if(atoi(mch)==4) {
+            char pass[128]={0};
+            printf("Enter new password: ");
+            scanf("%s", pass);
+            send(client_socket, pass, sizeof(pass), 0);
+            memset(msg, 0, sizeof(msg));
+            recv(client_socket, msg, sizeof(msg), 0);
+        }
+        else if(atoi(mch) > 4) {
+            close(client_socket);
+            exit(EXIT_SUCCESS);
         }
     }
 

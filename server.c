@@ -69,17 +69,13 @@ course_t course_db[100];
 student_t student_db[100];
 
 void load_admin_db() {
-    // Open the users database file for reading
     FILE *fp = fopen("/home/yash/ss_mini_project/db/admin.db", "r");
     if (fp < 0) {
         perror("open");
         exit(1);
     }
-
-    // Read each line from the users database file
     char line[1024];
     while (fgets(line, sizeof(line), fp) != NULL) {
-        // Parse the user data from the line
         admin_t user;
         char t[1];
         sscanf(line, "%d %d %s %s %s\n", &user.id, &user.type, user.username, user.password, t);
@@ -630,17 +626,64 @@ void send_all_courses(int client_fd) {
     free(courses);
 }
 
-int change_student_password(int student_id, const char *new_password) {
+int change_user_password(int id, const char *new_password) {
     // Lock the students text file
     int fd=open("db/users.db", O_RDWR);
-    FILE* fp=fopen("db/courses.db", "rw");
     struct flock lock;
     lock.l_type = F_WRLCK;
     lock.l_whence = SEEK_SET;
     lock.l_start = 0;
     lock.l_len = 0;
     fcntl(fd, F_SETLK, &lock);
-    strcpy(faculty_db[student_id].password, new_password);
+    strcpy(user_db[id].password, new_password);
+    save_user_db();
+    // Unlock the students text file
+    fcntl(fd, F_UNLCK, &lock);
+    return 1;
+}
+
+int change_faculty_password(int id, const char *new_password) {
+    // Lock the students text file
+    int fd=open("db/users.db", O_RDWR);
+    struct flock lock;
+    lock.l_type = F_WRLCK;
+    lock.l_whence = SEEK_SET;
+    lock.l_start = 0;
+    lock.l_len = 0;
+    fcntl(fd, F_SETLK, &lock);
+    strcpy(faculty_db[id].password, new_password);
+    save_faculty_db();
+    // Unlock the students text file
+    fcntl(fd, F_UNLCK, &lock);
+    return 1;
+}
+
+int update_student_details(int id, const char *new_name) {
+    // Lock the students text file
+    int fd=open("db/users.db", O_RDWR);
+    struct flock lock;
+    lock.l_type = F_WRLCK;
+    lock.l_whence = SEEK_SET;
+    lock.l_start = 0;
+    lock.l_len = 0;
+    fcntl(fd, F_SETLK, &lock);
+    strcpy(user_db[id].username, new_name);
+    save_user_db();
+    // Unlock the students text file
+    fcntl(fd, F_UNLCK, &lock);
+    return 1;
+}
+
+int update_faculty_details(int id, const char *new_name) {
+    // Lock the students text file
+    int fd=open("db/users.db", O_RDWR);
+    struct flock lock;
+    lock.l_type = F_WRLCK;
+    lock.l_whence = SEEK_SET;
+    lock.l_start = 0;
+    lock.l_len = 0;
+    fcntl(fd, F_SETLK, &lock);
+    strcpy(faculty_db[id].username, new_name);
     save_faculty_db();
     // Unlock the students text file
     fcntl(fd, F_UNLCK, &lock);
@@ -899,7 +942,7 @@ void *handle_client_connection(void *args) {
             save_sc_db();
         }
         // ? Add Faculty
-        if(mch_n == 2) {
+        else if(mch_n == 2) {
             char u[128]={0};
             if((recv(client_connection->socket_fd, u, sizeof(u), 0)) < 0) {
                 perror("recv");
@@ -922,7 +965,7 @@ void *handle_client_connection(void *args) {
             save_faculty_db();
         }
         // ? Activate/Deactivate Students
-        if(mch_n==3) {
+        else if(mch_n==3) {
             char id[100];
             char bool_a[1];
             int activate;
@@ -946,6 +989,30 @@ void *handle_client_connection(void *args) {
             activate_deactivate_student(id_n, activate);
         }
         // ? Update Student/Faculty Details
+        else if(mch_n == 4) {
+            char usr[2];
+            if((recv(client_connection->socket_fd, usr, sizeof(usr), 0)) < 0) {
+                perror("recv");
+                // retry
+            }
+            int uu=atoi(usr);
+            char id[100];
+            if((recv(client_connection->socket_fd, id, sizeof(id), 0)) < 0) {
+                perror("recv");
+                // retry
+            }
+            char newn[100];
+            if((recv(client_connection->socket_fd, newn, sizeof(newn), 0)) < 0) {
+                perror("recv");
+                // retry
+            }
+            if(uu==1) {
+                update_student_details(atoi(id), newn);
+            }
+            else if(uu==2) {
+                update_faculty_details(atoi(id), newn);
+            }
+        }
     }
 
     // ! FACULTY
@@ -1030,7 +1097,7 @@ void *handle_client_connection(void *args) {
                 perror("recv");
             }
             send(client_connection->socket_fd, "New Password received!", 21, 0);
-            change_student_password(student_id, new_pass);
+            change_faculty_password(student_id, new_pass);
         }
     }
 
@@ -1072,17 +1139,26 @@ void *handle_client_connection(void *args) {
             int cnum=atoi(course_id);
             enroll_student_in_course(user_id, cnum);
         }
-        if(mch_n==2) {
+        else if(mch_n==2) {
             char course_id[5]={0};
             recv(client_connection->socket_fd, course_id, sizeof(course_id), 0);
             int cnum=atoi(course_id);
             unenroll_from_course(user_id, cnum);
         }
+        else if(mch_n==3) {
+
+        }
+        else if(mch_n==4) {
+            int student_id=user_id;
+            char new_pass[128]={0};
+            if(recv(client_connection->socket_fd, new_pass, sizeof(new_pass), 0)) {
+                perror("recv");
+            }
+            send(client_connection->socket_fd, "New Password received!", 21, 0);
+            change_user_password(student_id, new_pass);
+        }
     }
 
-    // close(client_connection->socket_fd);
-    // free(client_connection);
-    // return NULL;
 }
 
 
@@ -1126,6 +1202,5 @@ void main(void) {
         pthread_t thread;
         pthread_create(&thread, NULL, handle_client_connection, client_connection);
     }
-    // -----
     close(server_socket);
 }
