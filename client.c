@@ -11,8 +11,8 @@
 void main(void) {
     struct termios old_settings, new_settings;
     tcgetattr(STDIN_FILENO, &old_settings);
-    char username[100];
-    char password[100];
+    char username[100]={0};
+    char password[100]={0};
     // Create a socket
     int client_socket=socket(AF_INET, SOCK_STREAM, 0);
     if(client_socket < 0) {
@@ -126,5 +126,38 @@ void main(void) {
             memset(msg, 0, sizeof(msg));
             recv(client_socket, msg, sizeof(msg), 0);
         }
+        if(atoi(mch)==2) {
+            char u[100]={0};
+            char pass[100]={0};
+            char type[1];
+            printf("Enter faculty username: ");
+            scanf("%s", u);
+            if(send(client_socket, u, sizeof(u), 0) < 0) {
+                perror("send");
+                close(client_socket);
+                exit(EXIT_FAILURE);
+            }
+            memset(msg, 0, sizeof(msg));
+            recv(client_socket, msg, sizeof(msg), 0);
+            printf("Enter password: ");
+            scanf("%s", pass);
+            if(send(client_socket, pass, sizeof(pass), 0) < 0) {
+                perror("send");
+                close(client_socket);
+                exit(EXIT_FAILURE);
+            }
+            memset(msg, 0, sizeof(msg));
+            recv(client_socket, msg, sizeof(msg), 0);
+            printf("Enter user type: ");
+            scanf("%s", type);
+            if(send(client_socket, type, sizeof(type), 0) < 0) {
+                perror("send");
+                close(client_socket);
+                exit(EXIT_FAILURE);
+            }
+            memset(msg, 0, sizeof(msg));
+            recv(client_socket, msg, sizeof(msg), 0);
+        }
     }
+    
 }

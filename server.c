@@ -41,35 +41,28 @@ user_t user_db[100];
 // Define the course database
 course_t course_db[100];
 
-// Load the user database from a file
 void load_user_db() {
-    int fd = open("/home/yash/ss_mini_project/db/users.db", O_RDONLY);
-    if (fd < 0) {
+    // Open the users database file for reading
+    FILE *fp = fopen("/home/yash/ss_mini_project/db/users.db", "r");
+    if (fp < 0) {
         perror("open");
         exit(1);
     }
 
-    // Read each user from the file and add it to the database
-    char buf[1024];
-    while (1) {
-        int bytes_read = read(fd, buf, sizeof(buf));
-        if (bytes_read < 0) {
-            perror("read");
-            break;
-        }
-
-        if (bytes_read == 0) {
-            break;
-        }
-
-        // Parse the user data from the buffer
+    // Read each line from the users database file
+    char line[1024];
+    while (fgets(line, sizeof(line), fp) != NULL) {
+        // Parse the user data from the line
         user_t user;
         char t[1];
-        sscanf(buf, "%d %d %s %s %s\n", &user.id, &user.type, user.username, user.password, t);
-        user.active=atoi(t);
+        sscanf(line, "%d %d %s %s %s\n", &user.id, &user.type, user.username, user.password, t);
+        user.active = atoi(t);
+        // Add the user to the database
+        write(STDOUT_FILENO, user.username, strlen(user.username));
         user_db[user.id] = user;
     }
-    close(fd);
+    // Close the users database file
+    fclose(fp);
 }
 
 // Save the user database to a file
@@ -79,7 +72,6 @@ void save_user_db() {
         perror("open");
         exit(1);
     }
-    // printf("inside this");
     // Write each user from the database to the file
     char buf[1024];
     for (int i = 0; i < 100; i++) {
@@ -107,7 +99,9 @@ int authenticate_user(char *username, char *password) {
     int i, id;
     for (i = 0; i < 100; i++) {
         user_t user = user_db[i];
+        
         if (user.active == 1 && strcmp(user.username, username) == 0 && strcmp(user.password, password) == 0) {
+            write(STDOUT_FILENO, user.username, strlen(user.username));
             id=user.id;
             break;
         }
@@ -328,7 +322,6 @@ void *handle_client_connection(void *args) {
             // free(client_connection);
             // return NULL;
         }
-        write(STDOUT_FILENO, "faculty cha bocha", 18);
         send(client_connection->socket_fd, "Login Success!", 15, 0);
     }
 
@@ -357,7 +350,6 @@ void *handle_client_connection(void *args) {
             // free(client_connection);
             // return NULL;
         }
-        write(STDOUT_FILENO, "student cha bocha", 18);
         send(client_connection->socket_fd, "Login Success!", 15, 0);
     }
 
