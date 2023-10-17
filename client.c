@@ -17,20 +17,16 @@ typedef struct {
     int available_seats;
 } course_t;
 
-
 void main(void) {
     struct termios old_settings, new_settings;
     tcgetattr(STDIN_FILENO, &old_settings);
     char username[100]={0};
     char password[100]={0};
-    // Create a socket
     int client_socket=socket(AF_INET, SOCK_STREAM, 0);
     if(client_socket < 0) {
         perror("socket");
         exit(EXIT_FAILURE);
     }
-
-    // Connect to the server
     struct sockaddr_in server_address;
     server_address.sin_family = AF_INET;
     server_address.sin_port = htons(SERVER_PORT);
@@ -299,14 +295,11 @@ void main(void) {
         else if(atoi(mch)==3) {
             int num_courses;
             recv(client_socket, &num_courses, sizeof(int), 0);
-            // Allocate an array to store the course details
             course_t *courses = malloc(sizeof(course_t) * num_courses);
             if (courses == NULL) {
                 perror("malloc");
                 exit(1);
             }
-
-            // Receive the course details from the server
             printf("%d\n", num_courses);
             for (int i = 0; i < num_courses; i++) {
                 recv(client_socket, &courses[i], sizeof(course_t), 0);
@@ -318,7 +311,6 @@ void main(void) {
                 printf("Course's maximum seats: %d\n\n", courses[i].max_seats);
                 printf("Course's available seats: %d\n\n", courses[i].available_seats);
             }
-            // Free the course details array
             free(courses);
         }
         else if(atoi(mch)==4) {
@@ -365,6 +357,13 @@ void main(void) {
                 close(client_socket);
                 exit(EXIT_FAILURE);
             }
+        }
+        else if(atoi(mch)==3) {
+            memset(msg, 0, sizeof(msg));
+            if(recv(client_socket, msg, sizeof(msg), 0)) {
+                perror("recv");
+            }
+            write(STDOUT_FILENO, msg, strlen(msg));
         }
         else if(atoi(mch)==4) {
             char pass[128]={0};

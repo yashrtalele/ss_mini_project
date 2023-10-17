@@ -58,6 +58,7 @@ typedef struct student {
 } student_t;
 
 pthread_mutex_t user_db_mutex;
+pthread_mutex_t student_lock;
 
 user_t user_db[100];
 admin_t admin_db[100];
@@ -235,7 +236,6 @@ int authenticate_faculty(char *username, char *password) {
     return (i < 100) ? id : -1;
 }
 
-
 int authenticate_user(char *username, char *password) {
     pthread_mutex_lock(&user_db_mutex);
     int i, id;
@@ -284,11 +284,11 @@ int create_user(char *username, char *password, enum user_type type) {
     user.active=1;
     user_db[id]=user;
     printf("%s %s \n", user.username, user.password);
-    student_t student;
-    student.id=id;
-    student.num_courses=0;
-    student_db[id]=student;
-    pthread_mutex_unlock(&user_db_mutex);
+    // student_t student;
+    // student.id=id;
+    // student.num_courses=0;
+    // student_db[id]=student;
+    // pthread_mutex_unlock(&user_db_mutex);
     printf("id = %d", id);
     return id;
 }
@@ -371,7 +371,6 @@ void save_courses_db() {
 }
 
 int create_course(char *name, int credits, char *instructor, int max_seats) {
-    
     int course_db_fd = open("/home/yash/ss_mini_project/db/courses.db", O_RDWR | O_CREAT, 0644);
     if (course_db_fd < 0) {
         perror("open");
@@ -381,19 +380,12 @@ int create_course(char *name, int credits, char *instructor, int max_seats) {
     course_db_lock.l_type = F_WRLCK;
     course_db_lock.l_whence = SEEK_SET;
     course_db_lock.l_start = 0;
-    course_db_lock.l_len = 0; 
-
-    
-     
+    course_db_lock.l_len = 0;
     fcntl(course_db_fd, F_SETLK, &course_db_lock);
-
-    
     int id = 0;
     while (course_db[id].name[0] != '\0') {
         id++;
     }
-
-    
     course_t course; 
     course.id=id;
     course.credits=credits;
@@ -402,12 +394,7 @@ int create_course(char *name, int credits, char *instructor, int max_seats) {
     course.max_seats=max_seats;
     course.available_seats=max_seats;
     course_db[id]=course;
-
-
-    
     fcntl(course_db_fd, F_UNLCK, &course_db_lock);
-
-    
     return id;
 }
 
@@ -417,23 +404,11 @@ void update_course(int id, char *name, int credits, char *instructor) {
         perror("open");
         exit(1);
     }
-
-    
-    
-
-    
     course_t course = course_db[id];
-
-    
-    
     course.credits = credits;
-    
-
-    
+    strcpy(course.name, name);
+    strcpy(course.instructor, instructor);
     course_db[id] = course;
-
-    
-    
 }
 
 void delete_course(int id) {
@@ -482,6 +457,18 @@ void get_courses_from_db(course_t *courses, int num_courses) {
         sscanf(line, "%d %s %d %s %d %d\n", &course->id, course->name, &course->credits, course->instructor, &course->max_seats, &course->available_seats);
     }
     fclose(fp);
+}
+
+void send_student_courses(int student_id, int client_socket) {
+    student_t student=student_db[student_id];
+    pthread_mutex_lock(&student_lock);
+    char buffer[1024];
+    for (int i = 0; i < student.num_courses; i++) {
+        course_t *course = student.enrolled_courses[i];
+        sprintf(buffer + strlen(buffer), "%d %s\n", course->id, course->name);
+    }
+    send(client_socket, buffer, strlen(buffer), 0);
+    pthread_mutex_unlock(&student_lock);
 }
 
 void send_all_courses(int client_fd) {
@@ -584,7 +571,6 @@ void write_students_to_file(student_t *students) {
             break;
         }
         for (int j = 0; j < students[i].num_courses; j++) {
-            write(STDOUT_FILENO, "HELLO", 5);
             char buf_s[1023];
             memset(buf_s, 0, sizeof(buf_s));
             sprintf(buf_s, "%d\n", students[i].enrolled_courses[j]->id);
@@ -734,7 +720,6 @@ void *handle_client_connection(void *args) {
                 exit(EXIT_FAILURE);
             }
             close(client_connection->socket_fd);
-            
         }
         send(client_connection->socket_fd, "Login Success!", 15, 0);
         char mch[1];
@@ -760,9 +745,8 @@ void *handle_client_connection(void *args) {
             send(client_connection->socket_fd, "Type received!", 15, 0);
             create_user(u, pass, atoi(t)-1);
             save_user_db();
-            save_sc_db();
+            // save_sc_db();
         }
-        
         else if(mch_n == 2) {
             char u[128]={0};
             if((recv(client_connection->socket_fd, u, sizeof(u), 0)) < 0) {
@@ -782,7 +766,6 @@ void *handle_client_connection(void *args) {
             create_faculty(u, pass, atoi(t)-1);
             save_faculty_db();
         }
-        
         else if(mch_n==3) {
             char id[100];
             char bool_a[1];
@@ -804,7 +787,6 @@ void *handle_client_connection(void *args) {
             }
             activate_deactivate_student(id_n, activate);
         }
-        
         else if(mch_n == 4) {
             char usr[2];
             if((recv(client_connection->socket_fd, usr, sizeof(usr), 0)) < 0) {
@@ -827,8 +809,6 @@ void *handle_client_connection(void *args) {
             }
         }
     }
-
-    
     else if(ch-1 == 1) {
         if((recv(client_connection->socket_fd, client_connection->user.username, sizeof(client_connection->user.username), 0)) < 0) {
             perror("recv");
@@ -934,6 +914,7 @@ void *handle_client_connection(void *args) {
             unenroll_from_course(user_id, cnum);
         }
         else if(mch_n==3) {
+            send_student_courses(user_id, client_connection->socket_fd);
         }
         else if(mch_n==4) {
             int student_id=user_id;
