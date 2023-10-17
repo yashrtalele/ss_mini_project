@@ -284,11 +284,7 @@ int create_user(char *username, char *password, enum user_type type) {
     user.active=1;
     user_db[id]=user;
     printf("%s %s \n", user.username, user.password);
-    // student_t student;
-    // student.id=id;
-    // student.num_courses=0;
-    // student_db[id]=student;
-    // pthread_mutex_unlock(&user_db_mutex);
+    pthread_mutex_unlock(&user_db_mutex);
     printf("id = %d", id);
     return id;
 }
